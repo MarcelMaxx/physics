@@ -3,8 +3,12 @@
 in  vec3 fragPos;
 in  vec3 fragNormal;
 in  vec4 fragColor;
+in  vec2 texCoord;
 
 out vec4 fColor;
+
+uniform int  isTexture;
+uniform sampler2D sphereTexture;
 
 uniform vec3 lightPos;
 uniform vec3 viewPos;
@@ -34,6 +38,10 @@ void main()
     vec3 diffuse  = lightDiffuse  * materialDiffuse  * diff;
     vec3 specular = lightSpecular * materialSpecular * spec;
 
-    vec3 color = (ambient + diffuse + specular) * fragColor.rgb;
+    vec3 baseColor = fragColor.rgb;
+    if (isTexture == 1) {
+        baseColor = texture(sphereTexture, texCoord).rgb;
+    }
+    vec3 color = (ambient + diffuse + specular) * baseColor;
     fColor = vec4(color, fragColor.a);
 }

@@ -2,6 +2,7 @@
 
 #include "cube.h"
 #include "sphere.h"
+#include "texture.hpp"
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/transform.hpp"
@@ -29,12 +30,12 @@ int g_sphereVertCount = 0;
 typedef glm::vec4  color4;
 typedef glm::vec4  point4;
 
-
 const int NumVertices = 36; //(6 faces)(2 triangles/face)(3 vertices/triangle)
 
 point4 points[NumVertices];
 color4 colors[NumVertices];
 point4 normals[NumVertices];
+glm::vec2 tcoords[NumVertices];
 
 // Vertices of a unit cube centered at origin
 point4 vertices[8] = {
@@ -51,13 +52,13 @@ point4 vertices[8] = {
 // RGBA colors
 color4 vertex_colors[8] = {
 	color4(0.0, 0.0, 0.0, 1.0),  // black
-	color4(0.0, 1.0, 1.0, 1.0),  // cyan
-	color4(1.0, 0.0, 1.0, 1.0),  // magenta
-	color4(1.0, 1.0, 0.0, 1.0),  // yellow
 	color4(1.0, 0.0, 0.0, 1.0),  // red
+	color4(1.0, 1.0, 0.0, 1.0),  // yellow
 	color4(0.0, 1.0, 0.0, 1.0),  // green
 	color4(0.0, 0.0, 1.0, 1.0),  // blue
-	color4(1.0, 1.0, 1.0, 1.0)   // white
+	color4(1.0, 0.0, 1.0, 1.0),  // magenta
+	color4(1.0, 1.0, 1.0, 1.0),  // white
+	color4(0.0, 1.0, 1.0, 1.0)   // cyan
 };
 
 int Index = 0;
@@ -68,16 +69,20 @@ static inline void quad(int a, int b, int c, int d)
 	glm::vec3 n = glm::normalize(glm::cross(u, v));
 	point4 normal(n.x, n.y, n.z, 0.0f);
 
-	colors[Index] = vertex_colors[a]; points[Index] = vertices[a]; normals[Index] = normal; Index++;
-	colors[Index] = vertex_colors[b]; points[Index] = vertices[b]; normals[Index] = normal; Index++;
-	colors[Index] = vertex_colors[c]; points[Index] = vertices[c]; normals[Index] = normal; Index++;
-	colors[Index] = vertex_colors[a]; points[Index] = vertices[a]; normals[Index] = normal; Index++;
-	colors[Index] = vertex_colors[c]; points[Index] = vertices[c]; normals[Index] = normal; Index++;
-	colors[Index] = vertex_colors[d]; points[Index] = vertices[d]; normals[Index] = normal; Index++;
+	// triangle 1: a,b,c
+	colors[Index] = vertex_colors[a]; points[Index] = vertices[a]; normals[Index] = normal; tcoords[Index] = glm::vec2(0.0f, 0.0f); Index++;
+	colors[Index] = vertex_colors[b]; points[Index] = vertices[b]; normals[Index] = normal; tcoords[Index] = glm::vec2(1.0f, 0.0f); Index++;
+	colors[Index] = vertex_colors[c]; points[Index] = vertices[c]; normals[Index] = normal; tcoords[Index] = glm::vec2(1.0f, 1.0f); Index++;
+
+	// triangle 2: a,c,d
+	colors[Index] = vertex_colors[a]; points[Index] = vertices[a]; normals[Index] = normal; tcoords[Index] = glm::vec2(0.0f, 0.0f); Index++;
+	colors[Index] = vertex_colors[c]; points[Index] = vertices[c]; normals[Index] = normal; tcoords[Index] = glm::vec2(1.0f, 1.0f); Index++;
+	colors[Index] = vertex_colors[d]; points[Index] = vertices[d]; normals[Index] = normal; tcoords[Index] = glm::vec2(0.0f, 1.0f); Index++;
 }
 
 static inline void colorcube()
 {
+	Index = 0;
 	quad(1, 0, 3, 2);
 	quad(2, 3, 7, 6);
 	quad(3, 0, 4, 7);
@@ -276,10 +281,20 @@ void init()
 	programID = InitShader("src/vshader.glsl", "src/fshader.glsl");
 	glUseProgram(programID);
 
-	// attribute locations
+	// attribute/uniform locations
 	GLuint vPosition = glGetAttribLocation(programID, "vPosition");
 	GLuint vNormal = glGetAttribLocation(programID, "vNormal");
 	GLuint vColor = glGetAttribLocation(programID, "vColor");
+	GLuint vTexCoord = glGetAttribLocation(programID, "vTexCoord");
+	GLint  textureModeID = glGetUniformLocation(programID, "isTexture");
+	GLint  samplerID = glGetUniformLocation(programID, "sphereTexture");
+
+	// ----- texture -----
+	GLuint Texture = loadBMP_custom("earth.bmp");
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, Texture);
+	glUniform1i(samplerID, 0);
+	glUniform1i(textureModeID, 1);
 
 	// ----- cube VAO -----
 	glGenVertexArrays(1, &vaoCube);
@@ -288,24 +303,24 @@ void init()
 	glGenBuffers(1, &bufferCube);
 	glBindBuffer(GL_ARRAY_BUFFER, bufferCube);
 	glBufferData(GL_ARRAY_BUFFER,
-		sizeof(points) + sizeof(normals) + sizeof(colors),
+		sizeof(points) + sizeof(normals) + sizeof(colors) + sizeof(tcoords),
 		NULL, GL_STATIC_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(points), points);
 	glBufferSubData(GL_ARRAY_BUFFER, sizeof(points), sizeof(normals), normals);
-	glBufferSubData(GL_ARRAY_BUFFER, sizeof(points) + sizeof(normals),
-		sizeof(colors), colors);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(points) + sizeof(normals), sizeof(colors), colors);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(points) + sizeof(normals) + sizeof(colors), sizeof(tcoords), tcoords);
 
 	glEnableVertexAttribArray(vPosition);
-	glVertexAttribPointer(vPosition, 4, GL_FLOAT, GL_FALSE, 0,
-		BUFFER_OFFSET(0));
+	glVertexAttribPointer(vPosition, 4, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(0));
 
 	glEnableVertexAttribArray(vNormal);
-	glVertexAttribPointer(vNormal, 4, GL_FLOAT, GL_FALSE, 0,
-		BUFFER_OFFSET(sizeof(points)));
+	glVertexAttribPointer(vNormal, 4, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(sizeof(points)));
 
 	glEnableVertexAttribArray(vColor);
-	glVertexAttribPointer(vColor, 4, GL_FLOAT, GL_FALSE, 0,
-		BUFFER_OFFSET(sizeof(points) + sizeof(normals)));
+	glVertexAttribPointer(vColor, 4, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(sizeof(points) + sizeof(normals)));
+
+	glEnableVertexAttribArray(vTexCoord);
+	glVertexAttribPointer(vTexCoord, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(sizeof(points) + sizeof(normals) + sizeof(colors)));
 
 	// ----- sphere VAO -----
 	g_sphereVertCount = static_cast<int>(g_sphere.verts.size());
@@ -318,29 +333,31 @@ void init()
 
 	int vertSize = sizeof(g_sphere.verts[0]) * g_sphere.verts.size();
 	int normalSize = sizeof(g_sphere.normals[0]) * g_sphere.normals.size();
+	int texSize = sizeof(g_sphere.texCoords[0]) * g_sphere.texCoords.size();
+
 	std::vector<glm::vec4> sphereColors(
-		g_sphere.verts.size(), glm::vec4(1.0f, 0.8f, 0.6f, 1.0f)); // ·ôÉ«
+		g_sphere.verts.size(), glm::vec4(1.0f, 0.8f, 0.6f, 1.0f));
 	int colorSize = sizeof(sphereColors[0]) * sphereColors.size();
 
 	glBufferData(GL_ARRAY_BUFFER,
-		vertSize + normalSize + colorSize,
+		vertSize + normalSize + colorSize + texSize,
 		NULL, GL_STATIC_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, vertSize, g_sphere.verts.data());
 	glBufferSubData(GL_ARRAY_BUFFER, vertSize, normalSize, g_sphere.normals.data());
-	glBufferSubData(GL_ARRAY_BUFFER, vertSize + normalSize,
-		colorSize, sphereColors.data());
+	glBufferSubData(GL_ARRAY_BUFFER, vertSize + normalSize, colorSize, sphereColors.data());
+	glBufferSubData(GL_ARRAY_BUFFER, vertSize + normalSize + colorSize, texSize, g_sphere.texCoords.data());
 
 	glEnableVertexAttribArray(vPosition);
-	glVertexAttribPointer(vPosition, 4, GL_FLOAT, GL_FALSE, 0,
-		BUFFER_OFFSET(0));
+	glVertexAttribPointer(vPosition, 4, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(0));
 
 	glEnableVertexAttribArray(vNormal);
-	glVertexAttribPointer(vNormal, 4, GL_FLOAT, GL_FALSE, 0,
-		BUFFER_OFFSET(vertSize));
+	glVertexAttribPointer(vNormal, 4, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(vertSize));
 
 	glEnableVertexAttribArray(vColor);
-	glVertexAttribPointer(vColor, 4, GL_FLOAT, GL_FALSE, 0,
-		BUFFER_OFFSET(vertSize + normalSize));
+	glVertexAttribPointer(vColor, 4, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(vertSize + normalSize));
+
+	glEnableVertexAttribArray(vTexCoord);
+	glVertexAttribPointer(vTexCoord, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(vertSize + normalSize + colorSize));
 
 	// ----- uniforms -----
 	projectMatrixID = glGetUniformLocation(programID, "mProject");

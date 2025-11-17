@@ -3,10 +3,12 @@
 in  vec4 vPosition;
 in  vec4 vNormal;
 in  vec4 vColor;
+in  vec2 vTexCoord;
 
 out vec3 fragPos;
 out vec3 fragNormal;
 out vec4 fragColor;
+out vec2 texCoord;
 
 uniform mat4 mProject;
 uniform mat4 mView;
@@ -18,6 +20,7 @@ void main()
     fragPos = worldPos.xyz;
     fragNormal = mat3(transpose(inverse(mModel))) * vNormal.xyz;
     fragColor = vColor;
+    texCoord = vTexCoord;
 
     gl_Position = mProject * mView * worldPos;
 }
