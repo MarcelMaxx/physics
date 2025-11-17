@@ -437,3 +437,6 @@ FodyWeavers.xsd
 /Debug/
 /Release/
 /x64/
+
+# User Custom
+.DS_Store
